@@ -16,16 +16,32 @@
     var loaderStarted = Date.now();
     var loaderHidden = false;
     var loaderFallback;
+    var loaderProgress = $('.loader-progress', pageLoader);
+    var loaderProgressFill = $('#loaderProgressFill', pageLoader);
+    var loaderPercent = $('#loaderPercent', pageLoader);
+    var loaderProgressTimer;
+    function setLoaderProgress(value) {
+      var percent = Math.round(value);
+      loaderProgress.setAttribute('aria-valuenow', String(percent));
+      loaderProgressFill.style.transform = 'scaleX(' + percent / 100 + ')';
+      loaderPercent.textContent = percent + '%';
+    }
     function hidePageLoader() {
       if (loaderHidden) return;
       loaderHidden = true;
       clearTimeout(loaderFallback);
+      clearInterval(loaderProgressTimer);
+      setLoaderProgress(100);
       var delay = reduced ? 0 : Math.max(0, 650 - (Date.now() - loaderStarted));
       setTimeout(function () {
         pageLoader.classList.add('is-hidden');
-        setTimeout(function () { pageLoader.remove(); }, reduced ? 0 : 700);
+        setTimeout(function () { pageLoader.remove(); }, reduced ? 0 : 850);
       }, delay);
     }
+    loaderProgressTimer = setInterval(function () {
+      var elapsed = Date.now() - loaderStarted;
+      setLoaderProgress(Math.min(90, 90 * (1 - Math.exp(-elapsed / 2200))));
+    }, 60);
     loaderFallback = setTimeout(hidePageLoader, 8000);
     if (document.readyState === 'complete') hidePageLoader();
     else window.addEventListener('load', hidePageLoader, { once: true });
@@ -42,14 +58,14 @@
   if (fine) {
     document.body.classList.add('has-cursor');
     var dot = $('#cDot'), ring = $('#cRing'), label = $('#cLabel');
-    var rx = mouse.x, ry = mouse.y, lastFrame = 0;
+    var rx = mouse.x, ry = mouse.y, dx = mouse.x, dy = mouse.y, lastFrame = 0;
     document.addEventListener('pointermove', function (e) {
       if (e.pointerType && e.pointerType !== 'mouse') return;
       mouse.x = e.clientX; mouse.y = e.clientY;
       if (!mouse.active) {
         mouse.active = true;
         dot.style.opacity = ring.style.opacity = 1;
-        rx = mouse.x; ry = mouse.y;
+        dx = rx = mouse.x; dy = ry = mouse.y;
       }
     });
     document.addEventListener('pointerleave', function () {
@@ -77,10 +93,13 @@
     (function loop(now) {
       var elapsed = lastFrame ? Math.min(now - lastFrame, 50) : 16.7;
       lastFrame = now;
-      var follow = 1 - Math.exp(-elapsed / 45);
-      rx += (mouse.x - rx) * follow;
-      ry += (mouse.y - ry) * follow;
-      dot.style.transform = 'translate3d(' + mouse.x + 'px,' + mouse.y + 'px,0) translate(-50%,-50%)';
+      var dotFollow = 1 - Math.exp(-elapsed / 24);
+      var ringFollow = 1 - Math.exp(-elapsed / 58);
+      dx += (mouse.x - dx) * dotFollow;
+      dy += (mouse.y - dy) * dotFollow;
+      rx += (mouse.x - rx) * ringFollow;
+      ry += (mouse.y - ry) * ringFollow;
+      dot.style.transform = 'translate3d(' + dx + 'px,' + dy + 'px,0) translate(-50%,-50%)';
       ring.style.transform = 'translate3d(' + rx + 'px,' + ry + 'px,0) translate(-50%,-50%)' + (ring.classList.contains('down') ? ' scale(.8)' : '');
       requestAnimationFrame(loop);
     })(performance.now());
@@ -217,8 +236,21 @@
   addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
   var burger = $('#burger'), menu = $('#navLinks');
-  function closeMenu() { burger.classList.remove('open'); menu.classList.remove('open'); }
-  burger.addEventListener('click', function () { burger.classList.toggle('open'); menu.classList.toggle('open'); });
+  function setMenuOpen(open) {
+    burger.classList.toggle('open', open);
+    menu.classList.toggle('open', open);
+    burger.setAttribute('aria-expanded', String(open));
+    burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  }
+  function closeMenu() { setMenuOpen(false); }
+  burger.addEventListener('click', function () { setMenuOpen(!menu.classList.contains('open')); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && menu.classList.contains('open')) {
+      closeMenu();
+      burger.focus();
+    }
+  });
+  addEventListener('resize', function () { if (innerWidth > 900) closeMenu(); });
 
   var dock = $('.dock'), dockTrigger = $('#dockTrigger');
   var desktopDock = window.matchMedia('(hover: hover) and (pointer: fine) and (min-width: 1025px)');
@@ -257,7 +289,7 @@
      5. TYPING EFFECT
   --------------------------------------------------- */
   (function () {
-    var el = $('#typed'), words = ['Web Developer', 'Python & Django Builder', 'Frontend Animator', 'AI-assisted Coder', 'Idea â†’ Reality'];
+    var el = $('#typed'), words = ['Web Developer', 'Python & Django Builder', 'Frontend Animator', 'AI-assisted Coder', 'Idea to Reality'];
     var w = 0, c = 0, del = false;
     if (reduced) { el.textContent = words[0]; return; }
     (function tick() {
@@ -332,8 +364,12 @@
   var tabs = $$('.tab'), cards = $$('.skill');
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
-      tabs.forEach(function (x) { x.classList.remove('active'); });
+      tabs.forEach(function (x) {
+        x.classList.remove('active');
+        x.setAttribute('aria-pressed', 'false');
+      });
       t.classList.add('active');
+      t.setAttribute('aria-pressed', 'true');
       var f = t.dataset.filter, n = 0;
       cards.forEach(function (c) {
         var show = f === 'all' || c.dataset.cat === f;
@@ -371,7 +407,10 @@
       function fallback() {
         var ta = document.createElement('textarea'); ta.value = v; ta.style.position = 'fixed'; ta.style.opacity = 0;
         document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); ok(); } catch (e) { say(v); }
+        try {
+          if (document.execCommand('copy')) ok();
+          else say('Could not copy. Please copy it manually.');
+        } catch (e) { say('Could not copy. Please copy it manually.'); }
         ta.remove();
       }
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(ok, fallback); else fallback();
@@ -385,6 +424,7 @@
   function err(id, msg) {
     var f = $('#' + id), e = $('.err[data-for="' + id + '"]');
     f.parentElement.classList.toggle('invalid', !!msg);
+    f.setAttribute('aria-invalid', String(!!msg));
     if (e) e.textContent = msg || '';
   }
   ['fName', 'fEmail', 'fMsg'].forEach(function (id) { $('#' + id).addEventListener('input', function () { err(id, ''); }); });

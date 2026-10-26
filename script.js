@@ -11,6 +11,43 @@
   var $$ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  var themeToggle = $('#themeToggle');
+  var themeColor = $('meta[name="theme-color"]');
+  function applyTheme(theme) {
+    var isLight = theme === 'light';
+    root.setAttribute('data-theme', theme);
+    themeToggle.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+    themeToggle.setAttribute('title', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+    themeToggle.setAttribute('aria-pressed', String(isLight));
+    themeColor.setAttribute('content', isLight ? '#f5f6fa' : '#08090b');
+  }
+  themeToggle.addEventListener('click', function () {
+    var nextTheme = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    if (reduced) {
+      applyTheme(nextTheme);
+      return;
+    }
+    if (!document.startViewTransition) {
+      root.classList.add('theme-fallback');
+      applyTheme(nextTheme);
+      setTimeout(function () { root.classList.remove('theme-fallback'); }, 1250);
+      return;
+    }
+    var bounds = themeToggle.getBoundingClientRect();
+    var x = bounds.left + bounds.width / 2;
+    var y = bounds.top + bounds.height / 2;
+    var radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    root.style.setProperty('--theme-reveal-x', x + 'px');
+    root.style.setProperty('--theme-reveal-y', y + 'px');
+    root.style.setProperty('--theme-reveal-radius', radius + 'px');
+    var transition = document.startViewTransition(function () { applyTheme(nextTheme); });
+    function clearReveal() {
+      root.style.removeProperty('--theme-reveal-x');
+      root.style.removeProperty('--theme-reveal-y');
+      root.style.removeProperty('--theme-reveal-radius');
+    }
+    transition.finished.then(clearReveal, clearReveal);
+  });
   var pageLoader = $('#pageLoader');
   if (pageLoader) {
     var loaderStarted = Date.now();
@@ -123,10 +160,10 @@
 
   /* ---------------------------------------------------
      4. NAVBAR, PROGRESS, ACTIVE LINK
-  --------------------------------------------------- */
-  var nav = $('#nav'), progress = $('#progress'), links = $$('.nav-links a');
-  var secs = links.map(function (a) { return $(a.getAttribute('href')); });
-  function onScroll() {
+     --------------------------------------------------- */
+     var nav = $('#nav'), progress = $('#progress'), links = $$('.nav-links a');
+     var secs = links.map(function (a) { return $(a.getAttribute('href')); });
+     function onScroll() {
     var y = scrollY, m = maxScroll();
     nav.classList.toggle('scrolled', y > 20);
     progress.style.transform = 'scaleX(' + (m ? y / m : 0) + ')';
